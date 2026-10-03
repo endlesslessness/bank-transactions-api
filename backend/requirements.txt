@@ -19,3 +19,7 @@ pytest-asyncio
 httpx
 ruff
 mypy
+# Типы для библиотек без собственных аннотаций: без них mypy --strict
+# не может проверить вызовы JWT и хеширования паролей.
+types-passlib
+types-python-jose
