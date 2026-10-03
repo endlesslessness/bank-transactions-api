@@ -3,6 +3,14 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 
+# Тесты проверяются отдельно от прикладного кода: параметры тестовой
+# функции — это фикстуры pytest, а не обычные аргументы, поэтому strict
+# считает их невызываемыми. Аннотации типов в тестах при этом
+# сохраняются и требуются.
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["call-arg"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

@@ -72,8 +72,15 @@ mypy backend/app
 Тесты:
 
 ```bash
+# отдельная база для тестов, чтобы не затрагивать данные разработки
+docker compose exec db psql -U bank -d bank -c "CREATE DATABASE bank_test;"
 pytest backend/tests
 ```
+
+Тесты работают с базой `bank_test` и базой Redis `1`: адреса задаются
+переменными окружения в `backend/tests/conftest.py`. Перед каждым
+тестом таблицы очищаются, поэтому тесты не зависят от порядка
+запуска.
 
 ## API
 
