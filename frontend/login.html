@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Вход — Bank Transactions</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <main class="container auth-wrap">
+      <div class="card">
+        <h1>Bank Transactions</h1>
+        <p class="muted">Войдите, чтобы управлять счетами</p>
+
+        <div class="tabs">
+          <button id="tab-login" class="active" type="button">Вход</button>
+          <button id="tab-register" type="button">Регистрация</button>
+        </div>
+
+        <div class="alert" id="alert"></div>
+
+        <!-- Форма входа -->
+        <form id="form-login">
+          <div class="field">
+            <label for="login-identifier">Email или логин</label>
+            <input id="login-identifier" type="text" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="login-password">Пароль</label>
+            <input
+              id="login-password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+          <button type="submit">Войти</button>
+        </form>
+
+        <!-- Форма регистрации -->
+        <form id="form-register" hidden>
+          <div class="field">
+            <label for="reg-email">Email</label>
+            <input id="reg-email" type="email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="reg-username">Логин</label>
+            <input
+              id="reg-username"
+              type="text"
+              minlength="3"
+              maxlength="64"
+              pattern="[a-zA-Z0-9_.\-]+"
+              autocomplete="username"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="reg-fullname">Полное имя (необязательно)</label>
+            <input id="reg-fullname" type="text" maxlength="255" />
+          </div>
+          <div class="field">
+            <label for="reg-password">Пароль (минимум 8 символов)</label>
+            <input
+              id="reg-password"
+              type="password"
+              minlength="8"
+              maxlength="72"
+              autocomplete="new-password"
+              required
+            />
+          </div>
+          <button type="submit">Создать аккаунт</button>
+        </form>
+      </div>
+    </main>
+
+    <script type="module">
+      import { api, tokens, ApiError } from '/js/api.js';
+
+      const alertBox = document.getElementById('alert');
+      const formLogin = document.getElementById('form-login');
+      const formRegister = document.getElementById('form-register');
+      const tabLogin = document.getElementById('tab-login');
+      const tabRegister = document.getElementById('tab-register');
+
+      /** Показать сообщение об ошибке или об успехе. */
+      function notify(message, kind) {
+        alertBox.textContent = message;
+        alertBox.className = `alert show ${kind}`;
+        if (kind === 'success') {
+          setTimeout(() => alertBox.classList.remove('show'), 2500);
+        }
+      }
+
+      function switchTab(showRegister) {
+        formLogin.hidden = showRegister;
+        formRegister.hidden = !showRegister;
+        tabLogin.classList.toggle('active', !showRegister);
+        tabRegister.classList.toggle('active', showRegister);
+        alertBox.classList.remove('show');
+      }
+
+      tabLogin.addEventListener('click', () => switchTab(false));
+      tabRegister.addEventListener('click', () => switchTab(true));
+
+      formLogin.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const identifier = document.getElementById('login-identifier').value.trim();
+        // API принимает либо email, либо логин: по наличию @ решаем,
+        // какое поле передать.
+        const payload = { password: document.getElementById('login-password').value };
+        if (identifier.includes('@')) {
+          payload.email = identifier;
+        } else {
+          payload.username = identifier;
+        }
+
+        try {
+          const answer = await api.login(payload);
+          tokens.save(answer);
+          window.location.href = '/accounts.html';
+        } catch (error) {
+          notify(
+            error instanceof ApiError ? error.message : 'Не удалось войти',
+            'error',
+          );
+        }
+      });
+
+      formRegister.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const payload = {
+          email: document.getElementById('reg-email').value.trim(),
+          username: document.getElementById('reg-username').value.trim(),
+          password: document.getElementById('reg-password').value,
+        };
+        const fullName = document.getElementById('reg-fullname').value.trim();
+        if (fullName) {
+          payload.full_name = fullName;
+        }
+
+        try {
+          await api.register(payload);
+          notify('Аккаунт создан, выполняем вход', 'success');
+          const answer = await api.login({
+            email: payload.email,
+            password: payload.password,
+          });
+          tokens.save(answer);
+          window.location.href = '/accounts.html';
+        } catch (error) {
+          notify(
+            error instanceof ApiError ? error.message : 'Не удалось зарегистрироваться',
+            'error',
+          );
+        }
+      });
+    </script>
+  </body>
+</html>

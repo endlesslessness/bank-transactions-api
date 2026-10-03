@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Перевод — Bank Transactions</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container topbar-inner">
+        <a href="/" class="brand">Bank Transactions</a>
+        <nav class="nav">
+          <a href="/accounts.html">Счета</a>
+          <a href="/transfer.html" class="active">Перевод</a>
+          <a href="/history.html">История</a>
+          <span class="muted" id="who"></span>
+          <button class="secondary" id="logout" type="button">Выйти</button>
+        </nav>
+      </div>
+    </div>
+
+    <main class="container">
+      <div class="card">
+        <h1>Перевод средств</h1>
+        <p class="muted">
+          Перевод выполняется между своими счетами в одной валюте. Ключ
+          <code>Idempotency-Key</code> защищает от повторного списания, если
+          запрос отправить повторно.
+        </p>
+      </div>
+
+      <div class="alert" id="alert"></div>
+
+      <div class="card">
+        <form id="form-transfer">
+          <div class="field">
+            <label for="from">Счёт-отправитель</label>
+            <select id="from" required></select>
+          </div>
+          <div class="field">
+            <label for="to">Счёт-получатель</label>
+            <select id="to" required></select>
+          </div>
+          <div class="field">
+            <label for="amount">Сумма</label>
+            <input id="amount" type="number" min="0.01" step="0.01" required />
+          </div>
+          <div class="field">
+            <label for="description">Назначение платежа (необязательно)</label>
+            <input id="description" type="text" maxlength="255" />
+          </div>
+          <button type="submit">Перевести</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Как защищён перевод</h2>
+        <table>
+          <tbody>
+            <tr>
+              <td>Блокировка строк</td>
+              <td class="muted">
+                <code>SELECT … FOR UPDATE</code> не даёт двум переводам
+                одновременно увидеть один баланс
+              </td>
+            </tr>
+            <tr>
+              <td>Одна транзакция</td>
+              <td class="muted">
+                списание, зачисление и запись перевода фиксируются вместе
+              </td>
+            </tr>
+            <tr>
+              <td>Идемпотентность</td>
+              <td class="muted">
+                повтор с тем же ключом вернёт первую транзакцию, а не спишет
+                снова
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <script type="module">
+      import { api, tokens, ApiError } from '/js/api.js';
+
+      const alertBox = document.getElementById('alert');
+      const selectFrom = document.getElementById('from');
+      const selectTo = document.getElementById('to');
+
+      /** Показать сообщение об ошибке или об успехе. */
+      function notify(message, kind) {
+        alertBox.textContent = message;
+        alertBox.className = `alert show ${kind}`;
+      }
+
+      /** Заполнить выпадающие списки своими счетами. */
+      function fillAccounts(accounts) {
+        const options = accounts
+          .map(
+            (item) =>
+              `<option value="${item.id}">${item.account_number} — ${Number(
+                item.balance,
+              ).toFixed(2)} ${item.currency}</option>`,
+          )
+          .join('');
+
+        if (!options) {
+          selectFrom.innerHTML = '<option value="">Счетов нет</option>';
+          selectTo.innerHTML = '<option value="">Счетов нет</option>';
+          return false;
+        }
+
+        selectFrom.innerHTML = options;
+        selectTo.innerHTML = options;
+        // По умолчанию отправитель и получатель разные, если счетов больше одного.
+        if (accounts.length > 1) {
+          selectTo.selectedIndex = 1;
+        }
+        return true;
+      }
+
+      /** Загрузить счета и профиль. */
+      async function load() {
+        if (!tokens.access) {
+          window.location.href = '/login.html';
+          return;
+        }
+        try {
+          const [accounts, me] = await Promise.all([
+            api.listAccounts(),
+            api.me(),
+          ]);
+          document.getElementById('who').textContent = me.username;
+          if (!fillAccounts(accounts)) {
+            notify('Сначала откройте счёт на странице счетов', 'error');
+          }
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 401) {
+            window.location.href = '/login.html';
+            return;
+          }
+          notify(
+            error instanceof ApiError ? error.message : 'Не удалось загрузить счета',
+            'error',
+          );
+        }
+      }
+
+      document
+        .getElementById('form-transfer')
+        .addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const button = event.target.querySelector('button');
+          button.disabled = true;
+
+          const payload = {
+            from_account_id: Number(selectFrom.value),
+            to_account_id: Number(selectTo.value),
+            amount: document.getElementById('amount').value,
+          };
+          const description = document.getElementById('description').value.trim();
+          if (description) {
+            payload.description = description;
+          }
+
+          try {
+            const transaction = await api.createTransaction(payload);
+            notify(`Перевод выполнен, операция №${transaction.id}`, 'success');
+            document.getElementById('amount').value = '';
+            document.getElementById('description').value = '';
+            await load();
+          } catch (error) {
+            notify(
+              error instanceof ApiError ? error.message : 'Не удалось выполнить перевод',
+              'error',
+            );
+          } finally {
+            button.disabled = false;
+          }
+        });
+
+      document.getElementById('logout').addEventListener('click', () => {
+        tokens.clear();
+        window.location.href = '/login.html';
+      });
+
+      load();
+    </script>
+  </body>
+</html>

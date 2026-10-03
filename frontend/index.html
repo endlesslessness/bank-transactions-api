@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bank Transactions API</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container topbar-inner">
+        <a href="/" class="brand">Bank Transactions</a>
+        <nav class="nav" id="nav" hidden>
+          <a href="/accounts.html">Счета</a>
+          <a href="/transfer.html">Перевод</a>
+          <a href="/history.html">История</a>
+          <span class="muted" id="who"></span>
+          <button class="secondary" id="logout" type="button">Выйти</button>
+        </nav>
+        <nav class="nav" id="nav-guest">
+          <a href="/login.html">Вход</a>
+          <a href="/docs">Swagger</a>
+        </nav>
+      </div>
+    </div>
+
+    <main class="container">
+      <div class="card">
+        <h1>Личный кабинет</h1>
+        <p class="muted">
+          REST API для банковских переводов: аутентификация по JWT, счета,
+          переводы с идемпотентностью и атомарностью.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Что умеет API</h2>
+        <table>
+          <tbody>
+            <tr>
+              <td>Аутентификация</td>
+              <td class="muted">регистрация, вход, обновление токена</td>
+            </tr>
+            <tr>
+              <td>Счета</td>
+              <td class="muted">список, создание, детали, баланс</td>
+            </tr>
+            <tr>
+              <td>Переводы</td>
+              <td class="muted">
+                защита от повторной оплаты ключом
+                <code>Idempotency-Key</code> и блокировка счетов
+              </td>
+            </tr>
+            <tr>
+              <td>История</td>
+              <td class="muted">пагинация и фильтры по дате, статусу, счёту</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Быстрый старт</h2>
+        <p class="muted">
+          Создайте счёт, пополните его и сделайте перевод между своими
+          счетами. Документация доступна по адресу
+          <a href="/docs">/docs</a>.
+        </p>
+        <a href="/login.html"><button type="button">Войти и начать</button></a>
+      </div>
+    </main>
+
+    <script type="module">
+      import { tokens } from '/js/api.js';
+
+      const isAuthed = Boolean(tokens.access);
+      document.getElementById('nav').hidden = !isAuthed;
+      document.getElementById('nav-guest').hidden = isAuthed;
+
+      if (isAuthed) {
+        document.getElementById('logout').addEventListener('click', () => {
+          tokens.clear();
+          window.location.href = '/login.html';
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Счета — Bank Transactions</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container topbar-inner">
+        <a href="/" class="brand">Bank Transactions</a>
+        <nav class="nav">
+          <a href="/accounts.html" class="active">Счета</a>
+          <a href="/transfer.html">Перевод</a>
+          <a href="/history.html">История</a>
+          <span class="muted" id="who"></span>
+          <button class="secondary" id="logout" type="button">Выйти</button>
+        </nav>
+      </div>
+    </div>
+
+    <main class="container">
+      <div class="card">
+        <h1>Счета</h1>
+        <p class="muted">Балансы обновляются автоматически при переводе</p>
+      </div>
+
+      <div class="alert" id="alert"></div>
+
+      <div class="card">
+        <h2>Мои счета</h2>
+        <div id="accounts" class="grid-cards">
+          <div class="loading">Загрузка…</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Открыть счёт</h2>
+        <form id="form-create">
+          <div class="row">
+            <div class="field">
+              <label for="currency">Валюта</label>
+              <select id="currency">
+                <option value="RUB" selected>RUB — российский рубль</option>
+                <option value="USD">USD — доллар США</option>
+                <option value="EUR">EUR — евро</option>
+                <option value="CNY">CNY — юань</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="balance">Начальный остаток</label>
+              <input id="balance" type="number" min="0" step="0.01" value="0" />
+            </div>
+          </div>
+          <button type="submit">Открыть счёт</button>
+        </form>
+      </div>
+    </main>
+
+    <script type="module">
+      import { api, tokens, ApiError } from '/js/api.js';
+
+      const alertBox = document.getElementById('alert');
+      const accountsBox = document.getElementById('accounts');
+
+      /** Показать сообщение об ошибке или об успехе. */
+      function notify(message, kind) {
+        alertBox.textContent = message;
+        alertBox.className = `alert show ${kind}`;
+      }
+
+      /** Отформатировать сумму с двумя знаками после запятой. */
+      function money(value, currency) {
+        return `${Number(value).toFixed(2)} ${currency}`;
+      }
+
+      /** Отрисовать список счетов. */
+      function render(accounts) {
+        if (!accounts.length) {
+          accountsBox.innerHTML =
+            '<div class="empty">Счетов пока нет. Откройте первый счёт ниже.</div>';
+          return;
+        }
+        accountsBox.innerHTML = accounts
+          .map(
+            (item) => `
+            <div class="account-card">
+              <div class="account-number">${item.account_number}</div>
+              <div class="balance">${money(item.balance, item.currency)}</div>
+            </div>`,
+          )
+          .join('');
+      }
+
+      /** Загрузить счета с сервера. */
+      async function load() {
+        if (!tokens.access) {
+          window.location.href = '/login.html';
+          return;
+        }
+        try {
+          const [accounts, me] = await Promise.all([
+            api.listAccounts(),
+            api.me(),
+          ]);
+          render(accounts);
+          document.getElementById('who').textContent = me.username;
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 401) {
+            window.location.href = '/login.html';
+            return;
+          }
+          notify(
+            error instanceof ApiError ? error.message : 'Не удалось загрузить счета',
+            'error',
+          );
+          accountsBox.innerHTML = '<div class="empty">Не удалось загрузить счета</div>';
+        }
+      }
+
+      document
+        .getElementById('form-create')
+        .addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const button = event.target.querySelector('button');
+          button.disabled = true;
+          try {
+            await api.createAccount({
+              currency: document.getElementById('currency').value,
+              initial_balance: document.getElementById('balance').value || '0',
+            });
+            notify('Счёт открыт', 'success');
+            await load();
+          } catch (error) {
+            notify(
+              error instanceof ApiError ? error.message : 'Не удалось открыть счёт',
+              'error',
+            );
+          } finally {
+            button.disabled = false;
+          }
+        });
+
+      document.getElementById('logout').addEventListener('click', () => {
+        tokens.clear();
+        window.location.href = '/login.html';
+      });
+
+      load();
+    </script>
+  </body>
+</html>

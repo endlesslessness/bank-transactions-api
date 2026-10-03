@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>История — Bank Transactions</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="container topbar-inner">
+        <a href="/" class="brand">Bank Transactions</a>
+        <nav class="nav">
+          <a href="/accounts.html">Счета</a>
+          <a href="/transfer.html">Перевод</a>
+          <a href="/history.html" class="active">История</a>
+          <span class="muted" id="who"></span>
+          <button class="secondary" id="logout" type="button">Выйти</button>
+        </nav>
+      </div>
+    </div>
+
+    <main class="container">
+      <div class="card">
+        <h1>История операций</h1>
+        <p class="muted">Все переводы, где вы участвуете с любой стороны</p>
+      </div>
+
+      <div class="card">
+        <form id="form-filters">
+          <div class="row">
+            <div class="field">
+              <label for="account">Счёт</label>
+              <select id="account">
+                <option value="">Все счета</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="status">Статус</label>
+              <select id="status">
+                <option value="">Любой</option>
+                <option value="completed">completed</option>
+                <option value="pending">pending</option>
+                <option value="failed">failed</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="date-from">С даты</label>
+              <input id="date-from" type="date" />
+            </div>
+            <div class="field">
+              <label for="date-to">По дату</label>
+              <input id="date-to" type="date" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="size">Записей на странице</label>
+              <select id="size">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="secondary" type="button" id="reset">Сбросить</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="alert" id="alert"></div>
+
+      <div class="card">
+        <h2>Операции</h2>
+        <div id="history"><div class="loading">Загрузка…</div></div>
+        <div class="row" style="margin-top: 16px">
+          <div class="field">
+            <button class="secondary" type="button" id="prev">Назад</button>
+          </div>
+          <div class="field">
+            <span class="muted" id="page-info"></span>
+          </div>
+          <div class="field">
+            <button class="secondary" type="button" id="next">Вперёд</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module">
+      import { api, tokens, ApiError } from '/js/api.js';
+
+      const alertBox = document.getElementById('alert');
+      const historyBox = document.getElementById('history');
+      const pageInfo = document.getElementById('page-info');
+      const selectAccount = document.getElementById('account');
+      const selectStatus = document.getElementById('status');
+      const inputFrom = document.getElementById('date-from');
+      const inputTo = document.getElementById('date-to');
+      const selectSize = document.getElementById('size');
+
+      let currentPage = 1;
+
+      /** Показать сообщение об ошибке или об успехе. */
+      function notify(message, kind) {
+        alertBox.textContent = message;
+        alertBox.className = `alert show ${kind}`;
+      }
+
+      /** Отформатировать дату из ISO в привычный вид. */
+      function formatDate(value) {
+        return new Date(value).toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
+
+      /** Отрисовать страницу истории. */
+      function render(data, accountsById) {
+        if (!data.items.length) {
+          historyBox.innerHTML = '<div class="empty">Операций не найдено</div>';
+          pageInfo.textContent = '';
+          return;
+        }
+
+        historyBox.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Счёт</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+                <th>Назначение</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.items
+                .map((item) => {
+                  const mine = accountsById[item.from_account_id];
+                  const sign = mine ? '-' : '+';
+                  const label = mine ? mine : accountsById[item.to_account_id];
+                  return `
+                    <tr>
+                      <td class="muted">${formatDate(item.created_at)}</td>
+                      <td class="muted">${label ? label.account_number : '—'}</td>
+                      <td class="amount ${sign === '-' ? 'expense' : 'income'}">
+                        ${sign}${Number(item.amount).toFixed(2)} ${item.currency}
+                      </td>
+                      <td><span class="badge ${item.status}">${item.status}</span></td>
+                      <td class="muted">${item.description || '—'}</td>
+                    </tr>`;
+                })
+                .join('')}
+            </tbody>
+          </table>`;
+
+        const last = Math.min(data.page * data.size, data.total);
+        pageInfo.textContent = `${data.total ? (data.page - 1) * data.size + 1 : 0}–${last} из ${data.total}`;
+      }
+
+      /** Загрузить историю с учётом фильтров. */
+      async function load() {
+        if (!tokens.access) {
+          window.location.href = '/login.html';
+          return;
+        }
+
+        const params = {
+          page: currentPage,
+          size: Number(selectSize.value),
+          account_id: selectAccount.value || undefined,
+          status: selectStatus.value || undefined,
+        };
+
+        if (inputFrom.value) {
+          params.date_from = new Date(inputFrom.value).toISOString();
+        }
+        if (inputTo.value) {
+          const end = new Date(inputTo.value);
+          end.setHours(23, 59, 59, 999);
+          params.date_to = end.toISOString();
+        }
+
+        try {
+          const [data, accounts] = await Promise.all([
+            api.listTransactions(params),
+            api.listAccounts(),
+          ]);
+
+          const byId = Object.fromEntries(accounts.map((item) => [item.id, item]));
+          render(data, byId);
+
+          if (!selectAccount.dataset.filled) {
+            selectAccount.insertAdjacentHTML(
+              'beforeend',
+              accounts
+                .map((item) => `<option value="${item.id}">${item.account_number}</option>`)
+                .join(''),
+            );
+            selectAccount.dataset.filled = '1';
+          }
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 401) {
+            window.location.href = '/login.html';
+            return;
+          }
+          notify(
+            error instanceof ApiError ? error.message : 'Не удалось загрузить историю',
+            'error',
+          );
+          historyBox.innerHTML = '<div class="empty">Не удалось загрузить историю</div>';
+        }
+      }
+
+      ['account', 'status', 'size', 'date-from', 'date-to'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', () => {
+          currentPage = 1;
+          load();
+        });
+      });
+
+      document.getElementById('reset').addEventListener('click', () => {
+        selectAccount.value = '';
+        selectStatus.value = '';
+        inputFrom.value = '';
+        inputTo.value = '';
+        currentPage = 1;
+        load();
+      });
+
+      document.getElementById('prev').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage -= 1;
+          load();
+        }
+      });
+
+      document.getElementById('next').addEventListener('click', () => {
+        currentPage += 1;
+        load();
+      });
+
+      document.getElementById('logout').addEventListener('click', () => {
+        tokens.clear();
+        window.location.href = '/login.html';
+      });
+
+      load();
+    </script>
+  </body>
+</html>
