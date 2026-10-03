@@ -5,6 +5,8 @@ asyncpg
 alembic
 pydantic
 pydantic-settings
+# Требуется для EmailStr: без него Pydantic не может проверить адрес.
+email-validator
 python-jose[cryptography]
 passlib[bcrypt]
 # passlib 1.7.4 несовместим с bcrypt >= 5: обёртка передаёт в хеш-функцию
