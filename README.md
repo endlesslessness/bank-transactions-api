@@ -62,6 +62,12 @@ docker compose up --build -d
 - Swagger: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
+Порты не взаимозаменяемы: на `8000` живёт только API, интерфейса там
+нет и не планируется — за него отвечает nginx. Если открыть
+`http://localhost:8000/`, придёт JSON со ссылками на разделы сервиса,
+а сам сайт нужно открывать на `http://localhost` (например,
+`/login.html`).
+
 Логи: `docker compose logs -f backend`
 
 ## Локальная разработка

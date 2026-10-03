@@ -92,6 +92,29 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 
 
+@app.get("/", tags=["Служебные"])
+async def root() -> dict[str, str]:
+    """Подсказать, где что находится.
+
+    На порту 8000 живёт только API, поэтому без этого ответа
+    корень выглядел бы как поломка. Пути указаны относительными,
+    чтобы подсказка не расходилась с реальностью на любом порту.
+
+    Returns:
+        Название сервиса, версия и адреса разделов.
+    """
+    return {
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "api": "/api/v1",
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "openapi": "/openapi.json",
+        "health": "/health",
+        "frontend": "/",
+    }
+
+
 @app.get("/health", tags=["Служебные"])
 async def health() -> dict[str, str]:
     """Проверить, что приложение отвечает.
