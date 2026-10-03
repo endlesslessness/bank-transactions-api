@@ -1,0 +1,28 @@
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["app", "tests"]
+# Файлы миграций создаются Alembic автоматически и не форматируются ruff.
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "C4", "SIM"]
+
+# app — собственный пакет проекта, а не сторонняя библиотека.
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# Миграции генерируются Alembic автоматически: форматирование и
+# длинные строки в них не контролируются вручную, поэтому
+# автогенерируемые файлы исключены из линтера.
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*" = ["E501", "UP035", "I001"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

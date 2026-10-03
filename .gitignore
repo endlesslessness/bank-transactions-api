@@ -1,0 +1,39 @@
+.opencode.md
+
+# Виртуальные окружения
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+
+# Тесты и линтеры
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Окружение
+.env
+.env.*
+!.env.example
+
+# Базы данных
+*.sqlite3
+*.db
+
+# IDE / редакторы
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
