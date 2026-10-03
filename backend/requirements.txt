@@ -7,6 +7,10 @@ pydantic
 pydantic-settings
 python-jose[cryptography]
 passlib[bcrypt]
+# passlib 1.7.4 несовместим с bcrypt >= 5: обёртка передаёт в хеш-функцию
+# пароль вместе с служебными байтами, из-за чего превышается лимит в 72
+# байта и любой хеш падает с ValueError. Версия 4.0.1 работает штатно.
+bcrypt==4.0.1
 python-multipart
 redis
 slowapi
