@@ -14,8 +14,9 @@ from app.core.config import settings
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[settings.RATE_LIMIT],
-    # slowapi отдаёт TooManyRequests без CORS-заголовков, из-за чего
-    # браузер показывает ошибку вместо внятного ответа. Заголовки
-    # проставляет middleware, а не обработчик.
+    # Заголовки X-RateLimit и Retry-After нужны клиенту, чтобы корректно
+    # отступить после 429. slowapi требует от каждого эндпоинта с
+    # декоратором @limiter.limit отдельный параметр response: Response —
+    # без него он падает с ошибкой при попытке встроить заголовки.
     headers_enabled=True,
 )

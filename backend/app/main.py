@@ -4,8 +4,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.extension import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.v1.router import api_router
@@ -19,6 +22,29 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
+    """Сформировать ответ на превышение лимита запросов.
+
+    Обработчик slowapi принимает ``RateLimitExceeded``, а Starlette
+    ожидает обработчик на любое исключение, поэтому здесь тонкая
+    обёртка. Она же добавляет к ответу 429 заголовки ``Retry-After``
+    и ``X-RateLimit``, чтобы клиент знал, сколько ждать.
+
+    Args:
+        request: Запрос, превысивший лимит.
+        exc: Исключение превышения лимита.
+
+    Returns:
+        Ответ 429 с заголовками rate limit.
+    """
+    if isinstance(exc, RateLimitExceeded):
+        return _rate_limit_exceeded_handler(request, exc)
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Превышен лимит запросов"},
+    )
 
 
 @asynccontextmanager
@@ -49,6 +75,10 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
+
+# Без этого обработчика ответ 429 не содержит Retry-After и X-RateLimit,
+# и клиент не понимает, сколько ждать до следующей попытки.
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
